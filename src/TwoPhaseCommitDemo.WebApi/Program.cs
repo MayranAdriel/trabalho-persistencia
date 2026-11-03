@@ -1,22 +1,32 @@
 using Microsoft.EntityFrameworkCore;
-using TwoPhaseCommitDemo.Infrastructure;
+using TwoPhaseCommitDemo.Application.Extensions;
 using TwoPhaseCommitDemo.Infrastructure.Data;
+using TwoPhaseCommitDemo.Infrastructure.Extensions;
+using TwoPhaseCommitDemo.WebApi.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Controllers convencionais (sem Minimal APIs)
+// Controllers tradicionais ASP.NET Core (sem Minimal APIs)
 builder.Services.AddControllers();
+
+// Global Exception Handling & ProblemDetails
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 
 // Swagger e OpenAPI
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// Registrar Clean Architecture Application & Infrastructure
-builder.Services.AddInfrastructureAndApplication(builder.Configuration);
+// Injeção de dependências no padrão ServicesExtensions por camada
+builder.Services.AddApplicationServices();
+builder.Services.AddInfrastructureServices(builder.Configuration);
 
 var app = builder.Build();
 
-// Garantir a inicialização das tabelas no PostgreSQL com política simples de retry (útil para docker-compose)
+// Pipeline de Middleware: Tratamento global de exceções no topo
+app.UseExceptionHandler();
+
+// Inicialização e validação das tabelas do PostgreSQL com retry amigável
 using (var scope = app.Services.CreateScope())
 {
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
@@ -33,10 +43,10 @@ using (var scope = app.Services.CreateScope())
         }
         catch (Exception ex)
         {
-            logger.LogWarning("Tentativa {Attempt}/10 de conectar ao PostgreSQL falhou: {Message}. Aguardando 2 segundos...", attempt, ex.Message);
+            logger.LogWarning("Tentativa {Attempt}/10 de conectar ao PostgreSQL falhou: {Message}. Aguardando 2s...", attempt, ex.Message);
             if (attempt == 10)
             {
-                logger.LogError("Não foi possível conectar ao PostgreSQL após 10 tentativas. A aplicação continuará aguardando chamadas.");
+                logger.LogError("Não foi possível conectar ao PostgreSQL após 10 tentativas. Aguardando chamadas da API.");
                 break;
             }
             await Task.Delay(2000);
@@ -44,12 +54,12 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configuração de Middleware
+// Configuração de Documentação (Swagger)
 app.UseSwagger();
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/swagger/v1/swagger.json", "2PC Demo API v1");
-    c.RoutePrefix = string.Empty; // Carrega a documentação do Swagger diretamente na raiz (http://localhost:5000/)
+    c.RoutePrefix = string.Empty; // Swagger na raiz (http://localhost:5000/)
 });
 
 app.UseRouting();

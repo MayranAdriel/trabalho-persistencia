@@ -22,18 +22,21 @@ trabalho-persistencia/
 │   ├── TwoPhaseCommitDemo.Application/     # Casos de uso, DTOs e Interfaces de Serviços
 │   │   ├── DTOs/                           # ProductDtos, ScenarioDtos
 │   │   ├── Interfaces/                     # IScenario1Service, IScenario2Service, IScenario3Service, etc.
-│   │   └── Services/                       # Implementação dos serviços de negócio e orquestração dos cenários
+│   │   ├── Services/                       # Implementação dos serviços de negócio e orquestração dos cenários
+│   │   └── Extensions/                     # ServicesExtensions (AddApplicationServices)
 │   │
 │   ├── TwoPhaseCommitDemo.Infrastructure/  # Implementação de banco, drivers e coordenador 2PC
 │   │   ├── Data/                           # PostgresDbContext (EF Core) e MongoDbContext (MongoDB Driver)
 │   │   ├── Repositories/                   # ProductPostgresRepository e ProductMongoRepository
 │   │   ├── Transactions/                   # PostgresTransactionParticipant, MongoTransactionParticipant, TwoPhaseCommitCoordinator
-│   │   └── Services/                       # ConsistencyMonitorService (Polling a cada 10ms via BackgroundService)
+│   │   ├── Services/                       # ConsistencyMonitorService (Polling a cada 10ms via BackgroundService)
+│   │   └── Extensions/                     # ServicesExtensions (AddInfrastructureServices, AddDatabaseServices, etc.)
 │   │
 │   └── TwoPhaseCommitDemo.WebApi/          # Controllers tradicionais ASP.NET Core e Configurações
 │       ├── Common/                         # ApiControllerBase (mapeador do Result Pattern para HTTP)
 │       ├── Controllers/                    # ScenariosController, ProductsController, MonitorController
-│       └── Program.cs                      # Configuração de DI, Swagger e Inicialização
+│       ├── Middlewares/                    # GlobalExceptionHandler (IExceptionHandler nativo do ASP.NET Core)
+│       └── Program.cs                      # Configuração de DI via extensions, Swagger e Inicialização
 │
 ├── tests/
 │   └── TwoPhaseCommitDemo.Tests/           # Testes unitários do Coordenador 2PC e Cenários (xUnit, Moq, FluentAssertions)

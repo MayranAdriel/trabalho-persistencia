@@ -3,24 +3,33 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 using TwoPhaseCommitDemo.Application.Interfaces;
-using TwoPhaseCommitDemo.Application.Services;
 using TwoPhaseCommitDemo.Domain.Interfaces;
 using TwoPhaseCommitDemo.Infrastructure.Data;
 using TwoPhaseCommitDemo.Infrastructure.Repositories;
 using TwoPhaseCommitDemo.Infrastructure.Services;
 using TwoPhaseCommitDemo.Infrastructure.Transactions;
 
-namespace TwoPhaseCommitDemo.Infrastructure;
+namespace TwoPhaseCommitDemo.Infrastructure.Extensions;
 
-public static class DependencyInjection
+public static class ServicesExtensions
 {
-    public static IServiceCollection AddInfrastructureAndApplication(
+    public static IServiceCollection AddInfrastructureServices(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // ==========================================
-        // 1. PostgreSQL (Entity Framework Core)
-        // ==========================================
+        services.AddDatabaseServices(configuration);
+        services.AddRepositories();
+        services.AddTwoPhaseCommitServices();
+        services.AddMonitoringServices();
+
+        return services;
+    }
+
+    public static IServiceCollection AddDatabaseServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // 1. PostgreSQL (EF Core DbContextFactory)
         var pgConnectionString = configuration.GetConnectionString("PostgreSql")
             ?? "Host=localhost;Port=5432;Database=twophasecommit_db;Username=postgres;Password=postgres";
 
@@ -29,9 +38,7 @@ public static class DependencyInjection
             options.UseNpgsql(pgConnectionString);
         });
 
-        // ==========================================
         // 2. MongoDB
-        // ==========================================
         var mongoConnectionString = configuration.GetConnectionString("MongoDb")
             ?? "mongodb://localhost:27017/?replicaSet=rs0&directConnection=true";
 
@@ -42,31 +49,30 @@ public static class DependencyInjection
         services.AddSingleton<MongoDbContext>(sp =>
         {
             var client = sp.GetRequiredService<IMongoClient>();
-            return new MongoDbContext(client, mongoDatabaseName);
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<MongoDbContext>>();
+            return new MongoDbContext(client, mongoDatabaseName, logger);
         });
 
-        // ==========================================
-        // 3. Repositories
-        // ==========================================
+        return services;
+    }
+
+    public static IServiceCollection AddRepositories(this IServiceCollection services)
+    {
         services.AddScoped<IProductPostgresRepository, ProductPostgresRepository>();
         services.AddScoped<IProductMongoRepository, ProductMongoRepository>();
 
-        // ==========================================
-        // 4. Two Phase Commit Coordinator
-        // ==========================================
+        return services;
+    }
+
+    public static IServiceCollection AddTwoPhaseCommitServices(this IServiceCollection services)
+    {
         services.AddScoped<ITwoPhaseCommitCoordinator, TwoPhaseCommitCoordinator>();
 
-        // ==========================================
-        // 5. Application Services
-        // ==========================================
-        services.AddScoped<IProductService, ProductService>();
-        services.AddScoped<IScenario1Service, Scenario1Service>();
-        services.AddScoped<IScenario2Service, Scenario2Service>();
-        services.AddScoped<IScenario3Service, Scenario3Service>();
+        return services;
+    }
 
-        // ==========================================
-        // 6. Consistency Monitor (Background & On-Demand)
-        // ==========================================
+    public static IServiceCollection AddMonitoringServices(this IServiceCollection services)
+    {
         services.AddSingleton<ConsistencyMonitorService>();
         services.AddSingleton<IConsistencyMonitorService>(sp => sp.GetRequiredService<ConsistencyMonitorService>());
         services.AddHostedService(sp => sp.GetRequiredService<ConsistencyMonitorService>());

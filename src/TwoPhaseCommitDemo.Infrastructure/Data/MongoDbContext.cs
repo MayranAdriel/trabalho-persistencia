@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization;
 using MongoDB.Bson.Serialization.Serializers;
@@ -10,38 +11,51 @@ public class MongoDbContext
 {
     private readonly IMongoDatabase _database;
     private readonly IMongoClient _client;
+    private readonly ILogger<MongoDbContext> _logger;
+    private static readonly object SerializerLock = new();
+    private static bool _serializersRegistered;
 
-    static MongoDbContext()
-    {
-        try
-        {
-            BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
-        }
-        catch (BsonSerializationException)
-        {
-            // Already registered
-        }
-
-        try
-        {
-            BsonSerializer.RegisterSerializer(new DecimalSerializer(BsonType.Decimal128));
-        }
-        catch (BsonSerializationException)
-        {
-            // Already registered
-        }
-    }
-
-    public MongoDbContext(IMongoClient client, string databaseName)
+    public MongoDbContext(IMongoClient client, string databaseName, ILogger<MongoDbContext> logger)
     {
         _client = client;
+        _logger = logger;
         _database = _client.GetDatabase(databaseName);
+
+        RegisterBsonSerializers();
         EnsureIndexes();
     }
 
     public IMongoClient Client => _client;
     public IMongoDatabase Database => _database;
     public IMongoCollection<Product> Products => _database.GetCollection<Product>("products");
+
+    private void RegisterBsonSerializers()
+    {
+        if (_serializersRegistered)
+        {
+            return;
+        }
+
+        lock (SerializerLock)
+        {
+            if (_serializersRegistered)
+            {
+                return;
+            }
+
+            try
+            {
+                BsonSerializer.RegisterSerializer(new GuidSerializer(GuidRepresentation.Standard));
+                BsonSerializer.RegisterSerializer(new DecimalSerializer(BsonType.Decimal128));
+                _serializersRegistered = true;
+            }
+            catch (BsonSerializationException ex)
+            {
+                _logger.LogDebug(ex, "BSON Serializers já registrados anteriormente no runtime.");
+                _serializersRegistered = true;
+            }
+        }
+    }
 
     private void EnsureIndexes()
     {
@@ -52,10 +66,9 @@ public class MongoDbContext
             var indexModel = new CreateIndexModel<Product>(indexKeysDefinition, indexOptions);
             Products.Indexes.CreateOne(indexModel);
         }
-        catch
+        catch (Exception ex)
         {
-            // Ignore during initial bootstrapping if server is connecting
+            _logger.LogWarning(ex, "Tentativa de inicializar índices no MongoDB falhou (o servidor pode estar em inicialização ou réplica configurando).");
         }
     }
 }
-

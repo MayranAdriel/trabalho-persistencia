@@ -64,7 +64,12 @@ public class Scenario3Service : IScenario3Service
         }
 
         var pgProduct = await _postgresRepository.GetByIdAsync(beforeState.PostgresProducts.First().Id, cancellationToken);
-        targetProduct = pgProduct ?? throw new InvalidOperationException("Produto alvo não encontrado.");
+        if (pgProduct is null)
+        {
+            return Result.Failure<Scenario3ExecutionResultDto>(Error.NotFound("PRODUCT_NOT_FOUND", "Produto alvo para execução do Cenário 3 não foi localizado."));
+        }
+
+        targetProduct = pgProduct;
 
         TwoPhaseCommitResult? lastTxResult = null;
 
