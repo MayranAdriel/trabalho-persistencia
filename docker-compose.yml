@@ -1,0 +1,87 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: 2pc-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: twophasecommit_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d twophasecommit_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:7.0
+    container_name: 2pc-mongodb
+    restart: unless-stopped
+    command: ["--replSet", "rs0", "--bind_ip_all"]
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mongo-init-replica:
+    image: mongo:7.0
+    container_name: 2pc-mongo-init
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    command: >
+      bash -c "
+        echo 'Aguardando inicialização do MongoDB...' &&
+        sleep 2 &&
+        mongosh --host mongodb:27017 --eval '
+          try {
+            rs.initiate({
+              _id: \"rs0\",
+              members: [
+                { _id: 0, host: \"localhost:27017\" }
+              ]
+            });
+            print(\"Replica Set rs0 inicializado com sucesso.\");
+          } catch (e) {
+            print(\"Replica Set já inicializado ou status atual:\");
+            printjson(rs.status());
+          }
+        '
+      "
+
+  api:
+    image: twophasecommit-api:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: 2pc-webapi
+    restart: unless-stopped
+    ports:
+      - "5000:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__PostgreSql=Host=postgres;Port=5432;Database=twophasecommit_db;Username=postgres;Password=postgres
+      - ConnectionStrings__MongoDb=mongodb://mongodb:27017/?replicaSet=rs0&directConnection=true
+      - MongoDatabaseName=twophasecommit_db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      mongo-init-replica:
+        condition: service_completed_successfully
+
+volumes:
+  pg_data:
+  mongo_data:
+

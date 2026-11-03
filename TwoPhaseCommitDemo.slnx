@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TwoPhaseCommitDemo.Application/TwoPhaseCommitDemo.Application.csproj" />
+    <Project Path="src/TwoPhaseCommitDemo.Domain/TwoPhaseCommitDemo.Domain.csproj" />
+    <Project Path="src/TwoPhaseCommitDemo.Infrastructure/TwoPhaseCommitDemo.Infrastructure.csproj" />
+    <Project Path="src/TwoPhaseCommitDemo.WebApi/TwoPhaseCommitDemo.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TwoPhaseCommitDemo.Tests/TwoPhaseCommitDemo.Tests.csproj" />
+  </Folder>
+</Solution>
