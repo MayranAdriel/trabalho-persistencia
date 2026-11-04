@@ -43,7 +43,8 @@ trabalho-persistencia/
 │
 ├── docker-compose.yml                      # Orquestração do PostgreSQL, MongoDB (Replica Set rs0) e WebApi
 ├── Dockerfile                              # Multi-stage build para .NET 10
-└── README.md                               # Documentação completa
+├── README.md                               # Guia de execução e documentação da API
+└── RELATORIO.md                            # Relatório técnico completo da arquitetura e cenários
 ```
 
 ---
